@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+		<meta name="description" content="J-algo Trading - Advanced algorithmic trading platform with scientific precision and market intelligence">
+		<meta name="apple-mobile-web-app-capable" content="yes">
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+		<link rel="icon" href="%sveltekit.assets%/favicon.ico" />
+		<link rel="apple-touch-icon" href="%sveltekit.assets%/jalgo-app-logo.png">
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+		<script>
+			// Safari detection - run as early as possible
+			(function() {
+				const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+				if (isSafari) document.documentElement.classList.add('safari-browser');
+			})();
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover" id="content" class="h-screen m-0 bg-gradient-to-b from-[#111111] to-[#0a7557] text-[#e6e6e6] font-sans">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

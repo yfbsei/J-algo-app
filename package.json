@@ -1,0 +1,33 @@
+{
+	"name": "j-algo-app",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"prepare": "svelte-kit sync || echo ''",
+		"check": "svelte-kit sync && svelte-check",
+		"lint": "eslint .",
+		"analyze": "vite build --mode analyze"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-auto": "^4.0.0",
+		"@sveltejs/kit": "^2.16.0",
+		"@sveltejs/vite-plugin-svelte": "^5.0.0",
+		"eslint": "^8.54.0",
+		"eslint-plugin-svelte": "^2.35.0",
+		"svelte": "^5.0.0",
+		"svelte-check": "^3.6.2",
+		"vite": "^6.0.0"
+	},
+	"dependencies": {
+		"@tailwindcss/vite": "^4.1.1",
+		"chart.js": "^4.4.8",
+		"tailwindcss": "^4.1.1"
+	},
+	"engines": {
+		"node": ">=18.0.0"
+	}
+}
