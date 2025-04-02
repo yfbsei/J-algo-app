@@ -5,31 +5,36 @@
   import ChartContainer from '$lib/components/ChartContainer.svelte';
   import AppDropdown from '$lib/components/AppDropdown.svelte';
   import ParticlesBackground from '$lib/components/ParticlesBackground.svelte';
+  import { registerChartPlugins } from '$lib/utils/chartHelpers.js';
   
-  // Lazy-loaded chart components
-  import { lazyLoad } from '$lib/utils/lazyLoader.js';
-  const PLDistributionChart = lazyLoad(() => import('$lib/charts/PLDistributionChart.svelte'));
-  const DailyPLChart = lazyLoad(() => import('$lib/charts/DailyPLChart.svelte'));
-  const CoinPerformanceChart = lazyLoad(() => import('$lib/charts/CoinPerformanceChart.svelte'));
-  const TradingActivityChart = lazyLoad(() => import('$lib/charts/TradingActivityChart.svelte'));
-  const PositionAnalysisChart = lazyLoad(() => import('$lib/charts/PositionAnalysisChart.svelte'));
-  const TimeFrameEfficiencyChart = lazyLoad(() => import('$lib/charts/TimeFrameEfficiencyChart.svelte'));
+  // Import chart components
+  import DailyPLChart from '$lib/charts/DailyPLChart.svelte';
+  import PLDistributionChart from '$lib/charts/PLDistributionChart.svelte';
+  import CoinPerformanceChart from '$lib/charts/CoinPerformanceChart.svelte';
+  import TradingActivityChart from '$lib/charts/TradingActivityChart.svelte';
+  import PositionAnalysisChart from '$lib/charts/PositionAnalysisChart.svelte';
+  import TimeFrameEfficiencyChart from '$lib/charts/TimeFrameEfficiencyChart.svelte';
   
   // App state
   let loading = true;
   let activeTimeframe = '1 Month';
   let selectedCoin = null;
+  let chartsReady = false;
+  let mobileView = false;
+  
+  // Chart visibility state using an object for efficiency
   let visibleCharts = {
-    daily: true,
-    pl: true,
-    coins: true,
-    trading: true,
-    analysis: true
+    daily: false,
+    pl: false,
+    coins: false,
+    trading: false,
+    position: false,
+    timeframe: false
   };
   
   // Chart intersection observer
   let observer;
-  let chartContainers = [];
+  let chartContainers = {};
   
   function setupIntersectionObserver() {
     // Create observer to only render charts when they become visible
@@ -41,40 +46,58 @@
         }
       });
     }, {
-      rootMargin: '100px', // Load charts slightly before they come into view
+      rootMargin: '200px', // Load charts before they come into view
       threshold: 0.1
     });
     
     // Observe all chart containers
-    chartContainers.forEach(container => {
+    Object.values(chartContainers).forEach(container => {
       if (container) observer.observe(container);
     });
   }
   
-  function handleTimeframeChange(timeframe) {
-    activeTimeframe = timeframe;
-    // Here you would update chart data based on selected timeframe
+  function checkMobileView() {
+    if (typeof window !== 'undefined') {
+      mobileView = window.innerWidth < 768;
+    }
+  }
+  
+  function handleTimeframeChange(event) {
+    activeTimeframe = event.detail;
+    console.log('Timeframe changed to:', activeTimeframe);
   }
   
   function handleCoinSelect(event) {
     selectedCoin = event.detail.coin;
-    // Here you could update other charts based on selected coin
   }
   
   onMount(() => {
+    // Register Chart.js plugins
+    registerChartPlugins();
+    
+    // Check if mobile view initially
+    checkMobileView();
+    
+    // Add resize listener
+    window.addEventListener('resize', checkMobileView);
+    
     // Simulate loading the dashboard data
     setTimeout(() => {
       loading = false;
       
-      // Setup observers after a small delay to ensure DOM is ready
-      setTimeout(setupIntersectionObserver, 100);
+      // Set up observers after DOM is ready
+      setTimeout(() => {
+        setupIntersectionObserver();
+        chartsReady = true;
+      }, 100);
     }, 800);
     
     return () => {
-      // Clean up observer
+      // Clean up
       if (observer) {
         observer.disconnect();
       }
+      window.removeEventListener('resize', checkMobileView);
     };
   });
 </script>
@@ -82,11 +105,10 @@
 <svelte:head>
   <title>J-algo Trading | Scientific Precision</title>
   <meta name="description" content="J-algo Trading - Advanced algorithmic trading platform with scientific precision and market intelligence">
-  <!-- Preload critical assets -->
   <link rel="preload" href="/images/jalgo-logo.png" as="image" fetchpriority="high">
 </svelte:head>
 
-<!-- Background - fullViewport ensures it covers entire page -->
+<!-- Background -->
 <ParticlesBackground fullViewport={true} particleOpacity={0.8} />
 
 <!-- Main app container -->
@@ -97,9 +119,9 @@
   <!-- Main content -->
   <main class="flex-1 px-4 py-6 md:px-6 lg:px-8 max-w-7xl mx-auto w-full">
     {#if loading}
-      <div class="flex items-center justify-center h-[80vh]">
-        <div class="bg-[#0a7557]/70 p-6 rounded-xl backdrop-blur-md shadow-lg border border-[#12d39d]/10 animate-pulse">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-[#12d39d] animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <div class="flex items-center justify-center h-screen absolute inset-0 z-10">
+        <div class="bg-[#0a7557]/70 p-6 rounded-xl backdrop-blur-md shadow-lg border border-[#12d39d]/10 animate-pulse flex flex-col items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-[#12d39d] animate-spin mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" stroke-opacity="0.25" stroke-dasharray="30 100" />
             <circle cx="12" cy="12" r="10" stroke-dasharray="30 100" stroke-dashoffset="50" />
           </svg>
@@ -107,7 +129,7 @@
         </div>
       </div>
     {:else}
-      <!-- Dashboard content -->
+      <!-- Stats cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 animate-fade-in">
         <StatCard 
           title="Total Profit" 
@@ -138,19 +160,19 @@
         />
       </div>
       
-      <!-- Charts section -->
+      <!-- First row of charts -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <div bind:this={chartContainers['daily']} id="daily" class="lg:col-span-2 transition-all duration-300">
+        <div bind:this={chartContainers.daily} id="daily" class="lg:col-span-2">
           <ChartContainer 
             title="Daily P&L Performance" 
             chartId="dailyChart" 
-            height="250"
+            height={mobileView ? "220" : "250"}
             hasControls={true}
             controls={['2 Weeks', '1 Month', '3 Months', '1 Year']}
             on:timeframeChange={handleTimeframeChange}
           >
-            {#if visibleCharts.daily}
-              <svelte:component this={DailyPLChart} timeframe={activeTimeframe} />
+            {#if chartsReady && visibleCharts.daily}
+              <DailyPLChart timeframe={activeTimeframe} />
             {/if}
             <div slot="footer" class="flex justify-between items-center mt-2 text-xs text-[#e6e6e6]/70">
               <span>Starting date: June 11, 2024</span>
@@ -159,10 +181,14 @@
           </ChartContainer>
         </div>
         
-        <div bind:this={chartContainers['pl']} id="pl">
-          <ChartContainer title="P&L Distribution" chartId="plChart" height="250">
-            {#if visibleCharts.pl}
-              <svelte:component this={PLDistributionChart} />
+        <div bind:this={chartContainers.pl} id="pl">
+          <ChartContainer 
+            title="P&L Distribution" 
+            chartId="plChart" 
+            height={mobileView ? "220" : "250"}
+          >
+            {#if chartsReady && visibleCharts.pl}
+              <PLDistributionChart />
             {/if}
             <div slot="footer" class="grid grid-cols-2 gap-4 mt-2">
               <div class="text-xs">
@@ -180,10 +206,14 @@
       
       <!-- Second row of charts -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <div bind:this={chartContainers['coins']} id="coins">
-          <ChartContainer title="Top Performing Coins" chartId="coinChart" height="300">
-            {#if visibleCharts.coins}
-              <svelte:component this={CoinPerformanceChart} on:coinselect={handleCoinSelect} />
+        <div bind:this={chartContainers.coins} id="coins">
+          <ChartContainer 
+            title="Top Performing Coins" 
+            chartId="coinChart" 
+            height={mobileView ? "280" : "300"}
+          >
+            {#if chartsReady && visibleCharts.coins}
+              <CoinPerformanceChart on:coinselect={handleCoinSelect} />
             {/if}
             <div slot="footer" class="text-xs text-[#e6e6e6]/70 mt-2">
               {#if selectedCoin}
@@ -195,10 +225,14 @@
           </ChartContainer>
         </div>
         
-        <div bind:this={chartContainers['trading']} id="trading">
-          <ChartContainer title="Trading Activity" chartId="tradesChart" height="300">
-            {#if visibleCharts.trading}
-              <svelte:component this={TradingActivityChart} />
+        <div bind:this={chartContainers.trading} id="trading">
+          <ChartContainer 
+            title="Trading Activity" 
+            chartId="tradesChart" 
+            height={mobileView ? "280" : "300"}
+          >
+            {#if chartsReady && visibleCharts.trading}
+              <TradingActivityChart />
             {/if}
             <div slot="footer" class="flex justify-between items-center mt-2 text-xs text-[#e6e6e6]/70">
               <span>Last 2 weeks</span>
@@ -207,45 +241,51 @@
           </ChartContainer>
         </div>
         
-        <div bind:this={chartContainers['analysis']} id="analysis">
-          <ChartContainer title="Analysis Metrics" chartId="analysisMetrics" height="300">
-            {#if visibleCharts.analysis}
-              <div class="grid grid-cols-1 gap-4">
-                <div>
-                  <p class="text-sm text-[#e6e6e6]/70 mb-2">Position Distribution</p>
-                  <div class="h-32">
-                    <svelte:component this={PositionAnalysisChart} chartId="positionChart" />
-                  </div>
-                  <div class="grid grid-cols-2 gap-2 mt-2">
-                    <div class="text-xs">
-                      <p class="text-[#e6e6e6]/70">Long</p>
-                      <p class="text-sm text-[#12d39d]">38.4%</p>
-                    </div>
-                    <div class="text-xs">
-                      <p class="text-[#e6e6e6]/70">Short</p>
-                      <p class="text-sm text-[#e6e6e6]">61.6%</p>
-                    </div>
-                  </div>
+        <div bind:this={chartContainers.analysis} id="analysis" class={mobileView ? "col-span-full" : ""}>
+          <ChartContainer 
+            title="Analysis Metrics" 
+            chartId="analysisMetrics" 
+            height={mobileView ? "400" : "300"}
+          >
+            <div class="grid grid-cols-1 gap-4">
+              <div>
+                <p class="text-sm text-[#e6e6e6]/70 mb-2">Position Distribution</p>
+                <div class="h-44" id="position" bind:this={chartContainers.position}>
+                  {#if chartsReady && visibleCharts.position}
+                    <PositionAnalysisChart chartId="positionChart" />
+                  {/if}
                 </div>
-                
-                <div>
-                  <p class="text-sm text-[#e6e6e6]/70 mb-2">Timeframe Efficiency</p>
-                  <div class="h-32">
-                    <svelte:component this={TimeFrameEfficiencyChart} chartId="timeframeChart" />
+                <div class="grid grid-cols-2 gap-2 mt-2">
+                  <div class="text-xs">
+                    <p class="text-[#e6e6e6]/70">Long</p>
+                    <p class="text-sm text-[#12d39d]">38.4%</p>
                   </div>
-                  <div class="grid grid-cols-2 gap-2 mt-2">
-                    <div class="text-xs">
-                      <p class="text-[#e6e6e6]/70">1min</p>
-                      <p class="text-sm text-[#e6e6e6]">8%</p>
-                    </div>
-                    <div class="text-xs">
-                      <p class="text-[#e6e6e6]/70">5min</p>
-                      <p class="text-sm text-[#12d39d]">92%</p>
-                    </div>
+                  <div class="text-xs">
+                    <p class="text-[#e6e6e6]/70">Short</p>
+                    <p class="text-sm text-[#e6e6e6]">61.6%</p>
                   </div>
                 </div>
               </div>
-            {/if}
+              
+              <div>
+                <p class="text-sm text-[#e6e6e6]/70 mb-2">Timeframe Efficiency</p>
+                <div class="h-44" id="timeframe" bind:this={chartContainers.timeframe}>
+                  {#if chartsReady && visibleCharts.timeframe}
+                    <TimeFrameEfficiencyChart chartId="timeframeChart" />
+                  {/if}
+                </div>
+                <div class="grid grid-cols-2 gap-2 mt-2">
+                  <div class="text-xs">
+                    <p class="text-[#e6e6e6]/70">1min</p>
+                    <p class="text-sm text-[#e6e6e6]">8%</p>
+                  </div>
+                  <div class="text-xs">
+                    <p class="text-[#e6e6e6]/70">5min</p>
+                    <p class="text-sm text-[#12d39d]">92%</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </ChartContainer>
         </div>
       </div>

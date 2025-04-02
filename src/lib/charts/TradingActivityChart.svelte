@@ -1,5 +1,6 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
+  import Chart from 'chart.js/auto';
   
   export let chartId = 'tradesChart';
   
@@ -21,168 +22,160 @@
     { x: 22, y: 10, outcome: 'win' }
   ];
   
-  // Split data
+  // Split data by outcome
   const winData = tradeData.filter(trade => trade.outcome === 'win');
   const lossData = tradeData.filter(trade => trade.outcome === 'loss');
   
-  // Chart dimensions
-  let width;
-  let height;
-  const margin = { top: 30, right: 20, bottom: 40, left: 50 };
+  // Chart instance reference
+  let chart;
+  let canvas;
   
-  // Refs
-  let chartContainer;
+  function createChart() {
+    if (!canvas || !canvas.getContext) return;
+    
+    // Destroy existing chart if it exists
+    if (chart) chart.destroy();
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Chart configuration
+    chart = new Chart(ctx, {
+      type: 'scatter',
+      data: {
+        datasets: [
+          {
+            label: 'Profitable Trades',
+            data: winData.map(d => ({ x: d.x, y: d.y })),
+            backgroundColor: 'rgba(18, 211, 157, 0.7)',
+            borderColor: 'rgba(18, 211, 157, 1)',
+            borderWidth: 1,
+            pointRadius: 8,
+            pointHoverRadius: 10
+          },
+          {
+            label: 'Loss Trades',
+            data: lossData.map(d => ({ x: d.x, y: d.y })),
+            backgroundColor: 'rgba(255, 99, 132, 0.7)',
+            borderColor: 'rgba(255, 99, 132, 1)',
+            borderWidth: 1,
+            pointRadius: 6,
+            pointHoverRadius: 8
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            type: 'linear',
+            position: 'bottom',
+            title: {
+              display: true,
+              text: 'Day of Month',
+              color: 'rgba(230, 230, 230, 0.7)',
+              font: {
+                size: 12
+              }
+            },
+            min: 10,
+            max: 23,
+            ticks: {
+              stepSize: 2,
+              color: 'rgba(230, 230, 230, 0.7)'
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.05)'
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Number of Trades',
+              color: 'rgba(230, 230, 230, 0.7)',
+              font: {
+                size: 12
+              }
+            },
+            min: 0,
+            max: 16,
+            ticks: {
+              stepSize: 2,
+              color: 'rgba(230, 230, 230, 0.7)'
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.05)'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              color: 'rgba(230, 230, 230, 0.7)',
+              boxWidth: 12,
+              padding: 10,
+              font: {
+                size: 12
+              }
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(10, 117, 87, 0.9)',
+            titleColor: 'rgba(255, 255, 255, 0.9)',
+            bodyColor: 'rgba(255, 255, 255, 0.9)',
+            borderColor: 'rgba(18, 211, 157, 0.3)',
+            borderWidth: 1,
+            padding: 10,
+            callbacks: {
+              label: function(context) {
+                const dataIndex = context.dataIndex;
+                const datasetIndex = context.datasetIndex;
+                const dataset = context.chart.data.datasets[datasetIndex];
+                
+                const point = dataset.data[dataIndex];
+                const label = dataset.label;
+                
+                return `${label}: ${point.y} trades on day ${point.x}`;
+              }
+            }
+          }
+        },
+        animation: {
+          duration: 800,
+          easing: 'easeOutQuart'
+        }
+      }
+    });
+  }
   
-  // Derived values
-  $: innerWidth = width - margin.left - margin.right;
-  $: innerHeight = height - margin.top - margin.bottom;
-  
-  // X and Y axis ranges
-  const xMin = 10;
-  const xMax = 23;
-  const yMin = 0;
-  const yMax = 16;
-  
-  // Scale calculations
-  $: xScale = innerWidth / (xMax - xMin);
-  $: yScale = innerHeight / (yMax - yMin);
-  
-  // Calculate point coordinates
-  $: getX = (point) => (point.x - xMin) * xScale;
-  $: getY = (point) => innerHeight - (point.y - yMin) * yScale;
-  
-  // Generate ticks
-  $: xTicks = Array.from({ length: xMax - xMin + 1 }, (_, i) => i + xMin);
-  $: yTicks = Array.from({ length: yMax / 2 + 1 }, (_, i) => i * 2);
-  
-  // Update dimensions on mount and when the window is resized
-  function updateDimensions() {
-    if (chartContainer) {
-      const rect = chartContainer.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
+  // Handle window resize
+  function handleResize() {
+    if (chart) {
+      chart.resize();
     }
   }
   
   onMount(() => {
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
+    // Create chart with a slight delay to ensure DOM is ready
+    setTimeout(() => {
+      createChart();
+    }, 50);
+    
+    // Add window resize listener
+    window.addEventListener('resize', handleResize);
     
     return () => {
-      window.removeEventListener('resize', updateDimensions);
+      // Clean up
+      if (chart) {
+        chart.destroy();
+      }
+      window.removeEventListener('resize', handleResize);
     };
   });
 </script>
 
-<div bind:this={chartContainer} id={chartId} class="w-full h-full">
-  {#if width && height}
-    <svg width={width} height={height}>
-      <!-- Background -->
-      <rect width={width} height={height} fill="transparent" />
-      
-      <!-- Legend -->
-      <g transform="translate(60, 15)">
-        <!-- Win point -->
-        <circle cx="0" cy="0" r="6" fill="rgba(18, 211, 157, 0.7)" />
-        <text x="12" y="4" font-size="12" fill="rgba(230, 230, 230, 0.7)">Profitable Trades</text>
-        
-        <!-- Loss point -->
-        <circle cx="120" cy="0" r="5" fill="rgba(255, 99, 132, 0.7)" />
-        <text x="132" y="4" font-size="12" fill="rgba(230, 230, 230, 0.7)">Loss Trades</text>
-      </g>
-      
-      <!-- Chart area group -->
-      <g transform={`translate(${margin.left}, ${margin.top})`}>
-        <!-- X-axis grid lines and labels -->
-        {#each xTicks as tick}
-          <line 
-            x1={(tick - xMin) * xScale} 
-            y1="0" 
-            x2={(tick - xMin) * xScale} 
-            y2={innerHeight} 
-            stroke="rgba(255, 255, 255, 0.05)" 
-            stroke-width="1"
-          />
-          {#if tick % 2 === 0}
-            <text 
-              x={(tick - xMin) * xScale} 
-              y={innerHeight + 20} 
-              font-size="11" 
-              text-anchor="middle" 
-              fill="rgba(230, 230, 230, 0.7)"
-            >
-              {tick}
-            </text>
-          {/if}
-        {/each}
-        
-        <!-- X-axis title -->
-        <text 
-          x={innerWidth / 2} 
-          y={innerHeight + 35} 
-          font-size="12" 
-          text-anchor="middle" 
-          fill="rgba(230, 230, 230, 0.7)"
-        >
-          Day of Month
-        </text>
-        
-        <!-- Y-axis grid lines and labels -->
-        {#each yTicks as tick}
-          <line 
-            x1="0" 
-            y1={innerHeight - tick * yScale} 
-            x2={innerWidth} 
-            y2={innerHeight - tick * yScale} 
-            stroke="rgba(255, 255, 255, 0.05)" 
-            stroke-width="1"
-          />
-          <text 
-            x="-10" 
-            y={innerHeight - tick * yScale} 
-            font-size="11" 
-            text-anchor="end" 
-            dominant-baseline="middle" 
-            fill="rgba(230, 230, 230, 0.7)"
-          >
-            {tick}
-          </text>
-        {/each}
-        
-        <!-- Y-axis title -->
-        <text 
-          transform="rotate(-90)" 
-          x={-innerHeight / 2} 
-          y="-35" 
-          font-size="12" 
-          text-anchor="middle" 
-          fill="rgba(230, 230, 230, 0.7)"
-        >
-          Number of Trades
-        </text>
-        
-        <!-- Win data points -->
-        {#each winData as point}
-          <circle 
-            cx={getX(point)} 
-            cy={getY(point)} 
-            r="8" 
-            fill="rgba(18, 211, 157, 0.7)" 
-          />
-        {/each}
-        
-        <!-- Loss data points -->
-        {#each lossData as point}
-          <circle 
-            cx={getX(point)} 
-            cy={getY(point)} 
-            r="6" 
-            fill="rgba(255, 99, 132, 0.7)" 
-          />
-        {/each}
-      </g>
-    </svg>
-  {/if}
+<div class="w-full h-full">
+  <canvas id={chartId} bind:this={canvas}></canvas>
 </div>
-
-<slot></slot>

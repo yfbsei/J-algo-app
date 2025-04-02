@@ -1,153 +1,140 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
+  import Chart from 'chart.js/auto';
   
   export let chartId = 'positionChart';
   
   // Chart data
-  const data = [
-    { label: 'Long', value: 1575, color: 'rgba(18, 211, 157, 0.7)' },
-    { label: 'Short', value: 2528, color: 'rgba(18, 211, 157, 0.4)' }
-  ];
+  const data = {
+    labels: ['Long', 'Short'],
+    values: [1575, 2528],
+    colors: ['rgba(18, 211, 157, 0.7)', 'rgba(18, 211, 157, 0.4)']
+  };
   
-  // Chart dimensions
-  let width;
-  let height;
-  const margin = 20;
+  // Chart instance reference
+  let chart;
+  let canvas;
   
-  // Refs
-  let chartContainer;
-  
-  // Animation
-  let animationProgress = 0;
-  let animationFrame;
-  
-  // Helper functions for doughnut chart
-  function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
-    const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
-    return {
-      x: centerX + radius * Math.cos(angleInRadians),
-      y: centerY + radius * Math.sin(angleInRadians)
-    };
+  function createChart() {
+    if (!canvas || !canvas.getContext) return;
+    
+    // Destroy existing chart if it exists
+    if (chart) chart.destroy();
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Calculate total
+    const total = data.values.reduce((a, b) => a + b, 0);
+    
+    // Chart configuration
+    chart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          data: data.values,
+          backgroundColor: data.colors,
+          borderColor: ['rgba(18, 211, 157, 0.9)', 'rgba(18, 211, 157, 0.6)'],
+          borderWidth: 1,
+          hoverOffset: 5
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%',
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: 'rgba(10, 117, 87, 0.9)',
+            titleColor: 'rgba(255, 255, 255, 0.9)',
+            bodyColor: 'rgba(255, 255, 255, 0.9)',
+            borderColor: 'rgba(18, 211, 157, 0.3)',
+            borderWidth: 1,
+            padding: 10,
+            displayColors: true,
+            callbacks: {
+              label: function(context) {
+                const label = context.label || '';
+                const value = context.parsed;
+                const percentage = ((value / total) * 100).toFixed(1);
+                return `${label}: $${value.toLocaleString()} (${percentage}%)`;
+              }
+            }
+          }
+        },
+        animation: {
+          animateRotate: true,
+          animateScale: true,
+          duration: 800,
+          easing: 'easeOutQuart'
+        }
+      },
+      plugins: [{
+        id: 'centerTextPlugin',
+        afterDraw: function(chart) {
+          // Skip plugin execution if it's not this specific chart
+          if (chart.canvas.id !== chartId) return;
+          
+          const ctx = chart.ctx;
+          const width = chart.width;
+          const height = chart.height;
+          
+          ctx.restore();
+          const fontSize = (height / 180).toFixed(2);
+          ctx.font = fontSize + 'em Inter';
+          ctx.textBaseline = 'middle';
+          
+          const text = 'Total';
+          const textX = Math.round((width - ctx.measureText(text).width) / 2);
+          const textY = height / 2 - 15;
+          
+          ctx.fillStyle = 'rgba(230, 230, 230, 0.7)';
+          ctx.fillText(text, textX, textY);
+          
+          const value = '$' + total.toLocaleString();
+          const valueX = Math.round((width - ctx.measureText(value).width) / 2);
+          const valueY = height / 2 + 15;
+          
+          ctx.font = (fontSize * 1.5) + 'em Inter';
+          ctx.fillStyle = 'rgba(18, 211, 157, 1)';
+          ctx.fillText(value, valueX, valueY);
+          
+          ctx.save();
+        }
+      }]
+    });
   }
   
-  function describeArc(x, y, radius, startAngle, endAngle) {
-    const start = polarToCartesian(x, y, radius, endAngle);
-    const end = polarToCartesian(x, y, radius, startAngle);
-    const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
-    return [
-      "M", start.x, start.y,
-      "A", radius, radius, 0, largeArcFlag, 0, end.x, end.y
-    ].join(" ");
-  }
-  
-  function createDonutPath(x, y, outerRadius, innerRadius, startAngle, endAngle) {
-    const outerArc = describeArc(x, y, outerRadius, startAngle, endAngle);
-    const innerArc = describeArc(x, y, innerRadius, endAngle, startAngle);
-    
-    const start = polarToCartesian(x, y, outerRadius, endAngle);
-    const end = polarToCartesian(x, y, innerRadius, endAngle);
-    const start2 = polarToCartesian(x, y, innerRadius, startAngle);
-    const end2 = polarToCartesian(x, y, outerRadius, startAngle);
-    
-    return `${outerArc} L ${end.x} ${end.y} ${innerArc} L ${end2.x} ${end2.y} Z`;
-  }
-  
-  // Derived values
-  $: centerX = width / 2;
-  $: centerY = height / 2;
-  $: radius = Math.min(width, height) / 2 - margin;
-  $: innerRadius = radius * 0.7; // 70% cutout
-  
-  // Calculate total for display
-  $: total = data.reduce((sum, item) => sum + item.value, 0);
-  
-  // Generate arcs for the doughnut
-  $: arcs = data.map((item, i) => {
-    const percentage = item.value / total;
-    let startAngle = 0;
-    
-    // Calculate start angle based on previous segments
-    for (let j = 0; j < i; j++) {
-      startAngle += (data[j].value / total) * 360 * animationProgress;
-    }
-    
-    const endAngle = startAngle + (percentage * 360 * animationProgress);
-    
-    return {
-      ...item,
-      percentage: percentage * 100,
-      startAngle,
-      endAngle,
-      path: createDonutPath(centerX, centerY, radius, innerRadius, startAngle, endAngle)
-    };
-  });
-  
-  // Animate the chart
-  function animateChart() {
-    if (animationProgress < 1) {
-      animationProgress += 0.04;
-      if (animationProgress > 1) animationProgress = 1;
-      animationFrame = requestAnimationFrame(animateChart);
-    }
-  }
-  
-  // Update dimensions on mount and when the window is resized
-  function updateDimensions() {
-    if (chartContainer) {
-      const rect = chartContainer.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
+  // Handle window resize
+  function handleResize() {
+    if (chart) {
+      chart.resize();
     }
   }
   
   onMount(() => {
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
+    // Create chart with a slight delay to ensure DOM is ready
+    setTimeout(() => {
+      createChart();
+    }, 50);
     
-    // Start animation
-    animationFrame = requestAnimationFrame(animateChart);
+    // Add window resize listener
+    window.addEventListener('resize', handleResize);
     
     return () => {
-      window.removeEventListener('resize', updateDimensions);
-      if (animationFrame) cancelAnimationFrame(animationFrame);
+      // Clean up
+      if (chart) {
+        chart.destroy();
+      }
+      window.removeEventListener('resize', handleResize);
     };
   });
 </script>
 
-<div bind:this={chartContainer} id={chartId} class="w-full h-full">
-  {#if width && height}
-    <svg width={width} height={height}>
-      <!-- Background -->
-      <rect width={width} height={height} fill="transparent" />
-      
-      <!-- Doughnut segments -->
-      {#each arcs as arc}
-        <path d={arc.path} fill={arc.color} />
-      {/each}
-      
-      <!-- Center text -->
-      <text 
-        x={centerX} 
-        y={centerY - 10} 
-        font-size={radius * 0.15} 
-        text-anchor="middle" 
-        fill="rgba(230, 230, 230, 0.7)"
-      >
-        Total
-      </text>
-      
-      <text 
-        x={centerX} 
-        y={centerY + 15} 
-        font-size={radius * 0.2} 
-        text-anchor="middle" 
-        font-weight="bold" 
-        fill="rgba(18, 211, 157, 1)"
-      >
-        ${total.toLocaleString()}
-      </text>
-    </svg>
-  {/if}
+<div class="w-full h-full">
+  <canvas id={chartId} bind:this={canvas}></canvas>
 </div>
-
-<slot></slot>

@@ -1,4 +1,7 @@
 <script>
+  import { createEventDispatcher, onMount } from 'svelte';
+  
+  // Props
   export let title = '';
   export let chartId = '';
   export let height = '220';
@@ -7,6 +10,32 @@
   export let hasLegend = false;
   export let hasControls = false;
   export let controls = [];
+  
+  // Event dispatcher
+  const dispatch = createEventDispatcher();
+  
+  // Active control state
+  let activeControl = '';
+  
+  onMount(() => {
+    // Set initial active control
+    if (controls && controls.length > 0) {
+      activeControl = controls[0];
+      
+      // Dispatch initial timeframe change event
+      setTimeout(() => {
+        dispatch('timeframeChange', activeControl);
+      }, 100);
+    }
+  });
+  
+  // Handle control click
+  function handleControlClick(control) {
+    if (activeControl !== control) {
+      activeControl = control;
+      dispatch('timeframeChange', control);
+    }
+  }
 </script>
 
 <div class="bg-[#0a7557]/70 rounded-xl overflow-hidden backdrop-blur-md shadow-md border border-[#12d39d]/10">
@@ -19,17 +48,22 @@
       </div>
     {/if}
     
-    {#if hasControls && controls.length > 0}
+    {#if hasControls && controls && controls.length > 0}
       <div class="flex gap-2">
-        {#each controls as control, i}
-          <span class="text-xs py-1 px-2 rounded {i === 0 ? 'bg-[#12d39d]/30 text-[#12d39d]' : 'bg-[#12d39d]/10 text-[#e6e6e6]/70 cursor-pointer'}">{control}</span>
+        {#each controls as control}
+          <button 
+            class="text-xs py-1 px-2 rounded transition-colors duration-200 {activeControl === control ? 'bg-[#12d39d]/30 text-[#12d39d]' : 'bg-[#12d39d]/10 text-[#e6e6e6]/70 hover:bg-[#12d39d]/20'}"
+            on:click={() => handleControlClick(control)}
+          >
+            {control}
+          </button>
         {/each}
       </div>
     {/if}
   </div>
   
-  <!-- Important: The chart container div needs an explicit height -->
-  <div class="p-4" style="height: {height}px; position: relative;">
+  <!-- Chart container with explicit height -->
+  <div class="p-4 relative" style="height: {height}px;">
     <slot></slot>
   </div>
   

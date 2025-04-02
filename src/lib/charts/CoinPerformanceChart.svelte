@@ -1,10 +1,11 @@
-// src/lib/charts/CoinPerformanceChart.svelte
 <script>
-  import { onMount, onDestroy } from 'svelte';
-  import { createTooltip, addHoverEffects } from '$lib/utils/chartInteraction';
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+  import Chart from 'chart.js/auto';
   
   export let chartId = 'coinChart';
-  export let animate = true; // Enable/disable animation
+  
+  // Set up event dispatcher for coin selection
+  const dispatch = createEventDispatcher();
   
   // Chart data with additional details for tooltips
   const coins = [
@@ -21,238 +22,165 @@
   // Sort coins by value (descending)
   const sortedCoins = [...coins].sort((a, b) => b.value - a.value);
   
-  // Chart dimensions
-  let width;
-  let height;
-  const margin = { top: 10, right: 15, bottom: 10, left: 80 };
-  
-  // Animation properties
-  let animationProgress = 0;
-  let animationFrame;
-  
-  // Interactive elements
-  let tooltip;
-  let chartContainer;
-  let barRefs = [];
-  
-  // Animation speed
-  const animationSpeed = 0.05; // Increase for faster animation
+  // Chart instance reference
+  let chart;
+  let canvas;
   
   // Generate gradient colors
-  const getColor = (index, hover = false) => {
+  function getBackgroundColor(context) {
+    if (!context.chart.chartArea) {
+      // This case happens on initial chart load
+      return 'rgba(18, 211, 157, 0.8)';
+    }
+    
+    // Get index of the current bar
+    const index = context.dataIndex;
+    // Adjust opacity based on bar position
     const opacity = Math.max(0.4, 0.9 - (index * 0.05));
-    // Brighter color for hover state
-    return hover 
+    
+    // Is hovered?
+    const isHovered = context.active;
+    
+    return isHovered 
       ? `rgba(18, 211, 180, ${opacity + 0.1})`
       : `rgba(18, 211, 157, ${opacity})`;
-  };
-  
-  // Derived values
-  $: innerWidth = width - margin.left - margin.right;
-  $: innerHeight = height - margin.top - margin.bottom;
-  
-  // Bar height and spacing
-  $: barHeight = innerHeight ? innerHeight / sortedCoins.length * 0.7 : 0;
-  $: barSpacing = innerHeight ? innerHeight / sortedCoins.length * 0.3 : 0;
-  
-  // Scale calculations
-  $: maxValue = Math.max(...sortedCoins.map(c => c.value));
-  $: xScale = innerWidth / maxValue;
-  
-  // Set up the tooltip
-  function setupTooltip() {
-    if (chartContainer) {
-      tooltip = createTooltip(chartContainer, {
-        className: 'coin-chart-tooltip',
-        offset: { x: 15, y: 10 }
-      });
-    }
   }
   
-  // Add hover effects to bars
-  function setupInteractions() {
-    barRefs.forEach((bar, index) => {
-      if (!bar) return;
-      
-      const coin = sortedCoins[index];
-      
-      addHoverEffects(
-        bar,
-        (event) => {
-          // Construct tooltip content
-          const tooltipContent = `
-            <div class="font-medium mb-1">${coin.name} (${coin.symbol})</div>
-            <div class="flex justify-between text-xs mb-1">
-              <span>Profit:</span>
-              <span class="font-medium text-[#12d39d]">$${coin.value.toLocaleString()}</span>
-            </div>
-            <div class="flex justify-between text-xs mb-1">
-              <span>Trades:</span>
-              <span>${coin.trades}</span>
-            </div>
-            <div class="text-xs opacity-80">${coin.transactions}</div>
-          `;
-          
-          // Show tooltip
-          tooltip.show(event, tooltipContent);
+  function createChart() {
+    if (!canvas || !canvas.getContext) return;
+    
+    // Destroy existing chart if it exists
+    if (chart) chart.destroy();
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Prepare data
+    const labels = sortedCoins.map(coin => coin.symbol);
+    const values = sortedCoins.map(coin => coin.value);
+    
+    // Chart configuration
+    chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: getBackgroundColor,
+          borderColor: 'rgba(18, 211, 157, 0.9)',
+          borderWidth: 1,
+          borderRadius: 4,
+          barPercentage: 0.7,
+          categoryPercentage: 0.8
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: {
+          padding: {
+            right: 15
+          }
         },
-        () => {
-          // Hide tooltip on leave
-          tooltip.hide();
+        scales: {
+          x: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(255, 255, 255, 0.05)'
+            },
+            ticks: {
+              callback: function(value) {
+                return '$' + value;
+              },
+              color: 'rgba(230, 230, 230, 0.7)'
+            }
+          },
+          y: {
+            grid: {
+              display: false
+            },
+            ticks: {
+              color: 'rgba(230, 230, 230, 0.7)'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: 'rgba(10, 117, 87, 0.9)',
+            titleColor: 'rgba(255, 255, 255, 0.9)',
+            bodyColor: 'rgba(255, 255, 255, 0.9)',
+            borderColor: 'rgba(18, 211, 157, 0.3)',
+            borderWidth: 1,
+            padding: 10,
+            displayColors: false,
+            callbacks: {
+              title: function(context) {
+                const index = context[0].dataIndex;
+                const coin = sortedCoins[index];
+                return `${coin.name} (${coin.symbol})`;
+              },
+              label: function(context) {
+                const index = context.dataIndex;
+                const coin = sortedCoins[index];
+                return [
+                  `Profit: $${coin.value.toLocaleString()}`,
+                  `Trades: ${coin.trades}`,
+                  `${coin.transactions}`
+                ];
+              }
+            }
+          }
+        },
+        animation: {
+          delay: function(context) {
+            return context.dataIndex * 50;
+          },
+          duration: 800,
+          easing: 'easeOutQuart'
+        },
+        onClick: (event, elements) => {
+          if (elements && elements.length > 0) {
+            const index = elements[0].index;
+            const selectedCoin = sortedCoins[index];
+            
+            // Dispatch the selected coin
+            dispatch('coinselect', { coin: selectedCoin });
+          }
         }
-      );
+      }
     });
   }
   
-  // Animation function
-  function animateChart() {
-    if (!animate) {
-      animationProgress = 1;
-      return;
-    }
-    
-    if (animationProgress < 1) {
-      animationProgress += animationSpeed;
-      if (animationProgress > 1) animationProgress = 1;
-      animationFrame = requestAnimationFrame(animateChart);
+  // Handle window resize
+  function handleResize() {
+    if (chart) {
+      chart.resize();
     }
   }
   
-  // Update dimensions on mount and when the window is resized
-  function updateDimensions() {
-    if (chartContainer) {
-      const rect = chartContainer.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
-    }
-  }
-  
-  // Handle bar click
-  function handleBarClick(coin) {
-    // Dispatch an event that can be handled by parent components
-    const event = new CustomEvent('coinselect', { 
-      detail: { coin },
-      bubbles: true 
-    });
-    chartContainer.dispatchEvent(event);
-  }
-
   onMount(() => {
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
+    // Create chart with a slight delay to ensure DOM is ready
+    setTimeout(() => {
+      createChart();
+    }, 50);
     
-    // Start animation
-    animationFrame = requestAnimationFrame(animateChart);
-    
-    // Set up tooltip
-    setupTooltip();
-    
-    // Set up interactions after a small delay to ensure DOM is ready
-    setTimeout(setupInteractions, 100);
+    // Add window resize listener
+    window.addEventListener('resize', handleResize);
     
     return () => {
-      window.removeEventListener('resize', updateDimensions);
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
+      // Clean up
+      if (chart) {
+        chart.destroy();
       }
+      window.removeEventListener('resize', handleResize);
     };
-  });
-  
-  onDestroy(() => {
-    if (animationFrame) {
-      cancelAnimationFrame(animationFrame);
-    }
   });
 </script>
 
-<div bind:this={chartContainer} id={chartId} class="w-full h-full relative">
-  {#if width && height}
-    <svg width={width} height={height}>
-      <!-- Background -->
-      <rect width={width} height={height} fill="transparent" />
-      
-      <!-- Chart area group -->
-      <g transform={`translate(${margin.left}, ${margin.top})`}>
-        <!-- X-axis grid lines -->
-        {#each [0, 0.25, 0.5, 0.75, 1] as ratio}
-          <line 
-            x1={ratio * innerWidth} 
-            y1="0" 
-            x2={ratio * innerWidth} 
-            y2={innerHeight} 
-            stroke="rgba(255, 255, 255, 0.05)" 
-            stroke-width="1"
-          />
-          <text 
-            x={ratio * innerWidth} 
-            y={innerHeight + 10} 
-            font-size="11" 
-            text-anchor="middle" 
-            fill="rgba(230, 230, 230, 0.7)"
-          >
-            ${Math.round(ratio * maxValue)}
-          </text>
-        {/each}
-        
-        <!-- Bars and labels -->
-        {#each sortedCoins as coin, i}
-          <g transform={`translate(0, ${i * (barHeight + barSpacing)})`}>
-            <!-- Coin label -->
-            <text 
-              x="-10" 
-              y={barHeight / 2} 
-              font-size="12" 
-              text-anchor="end" 
-              dominant-baseline="middle" 
-              fill="rgba(230, 230, 230, 0.7)"
-            >
-              {coin.symbol}
-            </text>
-            
-            <!-- Animated Bar -->
-            <rect 
-              bind:this={barRefs[i]}
-              x="0" 
-              y="0" 
-              width={coin.value * xScale * animationProgress} 
-              height={barHeight} 
-              rx="4" 
-              ry="4" 
-              fill={getColor(i)}
-              cursor="pointer"
-              on:click={() => handleBarClick(coin)}
-              class="transition-all duration-300"
-            />
-            
-            <!-- Value label -->
-            <text 
-              x={Math.min(coin.value * xScale * animationProgress + 10, innerWidth)} 
-              y={barHeight / 2} 
-              font-size="12" 
-              text-anchor={coin.value * xScale + 40 > innerWidth ? "end" : "start"}
-              dominant-baseline="middle" 
-              fill="white"
-              dx={coin.value * xScale + 40 > innerWidth ? -10 : 0}
-              opacity={animationProgress}
-            >
-              ${coin.value}
-            </text>
-          </g>
-        {/each}
-      </g>
-    </svg>
-  {/if}
+<div class="w-full h-full">
+  <canvas id={chartId} bind:this={canvas}></canvas>
 </div>
-
-<style>
-  :global(.coin-chart-tooltip) {
-    font-family: 'Inter', sans-serif;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    border-radius: 6px;
-    max-width: 180px;
-    word-break: break-word;
-    z-index: 100;
-  }
-</style>
-
-<slot></slot>

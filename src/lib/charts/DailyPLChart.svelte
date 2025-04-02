@@ -1,192 +1,181 @@
-// src/lib/charts/DailyPLChart.svelte
-// Replace with this straightforward implementation that renders immediately
-
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
+  import Chart from 'chart.js/auto';
   
   export let chartId = 'dailyChart';
+  export let timeframe = '1 Month'; // Default timeframe
   
-  // Chart data
-  const dates = ['6/11', '6/12', '6/13', '6/14', '6/15', '6/16', '6/17', '6/18', '6/19', '6/20', '6/21', '6/22'];
-  const values = [175, 250, 210, 320, 450, 420, 680, 720, 830, 920, 1050, 1200];
+  // Chart data based on timeframe
+  const chartData = {
+    '2 Weeks': {
+      labels: ['6/16', '6/17', '6/18', '6/19', '6/20', '6/21', '6/22', '6/23', '6/24', '6/25', '6/26', '6/27', '6/28', '6/29'],
+      values: [420, 680, 720, 830, 920, 1050, 1200, 1150, 1300, 1420, 1580, 1650, 1720, 1850]
+    },
+    '1 Month': {
+      labels: ['6/01', '6/04', '6/07', '6/10', '6/13', '6/16', '6/19', '6/22', '6/25', '6/28'],
+      values: [100, 150, 210, 320, 450, 580, 830, 1200, 1580, 1850]
+    },
+    '3 Months': {
+      labels: ['4/01', '4/15', '5/01', '5/15', '6/01', '6/15', '6/29'],
+      values: [0, 350, 700, 1200, 1500, 1700, 1850]
+    },
+    '1 Year': {
+      labels: ['7/22', '9/22', '11/22', '1/23', '3/23', '5/23', '7/23', '9/23', '11/23', '1/24', '3/24', '5/24', '6/24'],
+      values: [0, 200, 400, 800, 1200, 1600, 2200, 2800, 3400, 3800, 4200, 4600, 4850]
+    }
+  };
   
-  // Chart dimensions
-  let width;
-  let height;
-  const margin = { top: 20, right: 15, bottom: 30, left: 50 };
+  // Chart instance reference
+  let chart;
+  let canvas;
   
-  // Refs
-  let chartContainer;
-  let isRendered = false;
+  // Initialize or update chart
+  function createChart() {
+    if (!canvas || !canvas.getContext) return;
+    
+    // Destroy existing chart if it exists
+    if (chart) {
+      chart.destroy();
+    }
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Get current data based on timeframe
+    const data = chartData[timeframe] || chartData['1 Month'];
+    
+    // Create gradient for area fill
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, 'rgba(18, 211, 157, 0.4)');
+    gradient.addColorStop(1, 'rgba(18, 211, 157, 0.0)');
+    
+    // Chart configuration
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          label: 'Daily P&L',
+          data: data.values,
+          borderColor: 'rgba(18, 211, 157, 1)',
+          borderWidth: 3,
+          pointBackgroundColor: 'rgba(18, 211, 157, 1)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 8,
+          pointHoverBackgroundColor: '#fff',
+          pointHoverBorderColor: 'rgba(18, 211, 157, 1)',
+          pointHoverBorderWidth: 3,
+          tension: 0.3,
+          fill: true,
+          backgroundColor: gradient
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        hover: {
+          mode: 'nearest',
+          intersect: false
+        },
+        scales: {
+          x: {
+            grid: {
+              color: 'rgba(255, 255, 255, 0.05)'
+            },
+            ticks: {
+              color: 'rgba(230, 230, 230, 0.7)',
+              maxRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: 10
+            }
+          },
+          y: {
+            grid: {
+              color: 'rgba(255, 255, 255, 0.05)'
+            },
+            ticks: {
+              color: 'rgba(230, 230, 230, 0.7)',
+              callback: function(value) {
+                return '$' + value;
+              }
+            },
+            beginAtZero: true
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: 'rgba(10, 117, 87, 0.9)',
+            titleColor: 'rgba(255, 255, 255, 0.9)',
+            bodyColor: 'rgba(255, 255, 255, 0.9)',
+            borderColor: 'rgba(18, 211, 157, 0.3)',
+            borderWidth: 1,
+            padding: 10,
+            displayColors: false,
+            callbacks: {
+              title: function(context) {
+                return context[0].label;
+              },
+              label: function(context) {
+                return 'Profit: $' + context.parsed.y.toLocaleString();
+              }
+            }
+          }
+        },
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        animations: {
+          tension: {
+            duration: 1000,
+            easing: 'linear'
+          }
+        }
+      }
+    });
+  }
   
-  // Derived values
-  $: innerWidth = width - margin.left - margin.right;
-  $: innerHeight = height - margin.top - margin.bottom;
+  // Handle window resize
+  function handleResize() {
+    if (chart) {
+      chart.resize();
+    }
+  }
   
-  // Scale calculations
-  $: xScale = innerWidth ? innerWidth / (dates.length - 1) : 0;
-  $: yMin = Math.min(...values) * 0.9;
-  $: yMax = Math.max(...values) * 1.1;
-  $: yScale = innerHeight ? innerHeight / (yMax - yMin) : 0;
-  
-  // Generate points for the path
-  $: points = values.map((value, i) => {
-    const x = i * xScale;
-    const y = innerHeight - (value - yMin) * yScale;
-    return `${x},${y}`;
-  }).join(' ');
-  
-  // Generate the fill path
-  $: fillPath = `
-    M${0},${innerHeight}
-    ${values.map((value, i) => {
-      const x = i * xScale;
-      const y = innerHeight - (value - yMin) * yScale;
-      return `L${x},${y}`;
-    }).join(' ')}
-    L${(dates.length - 1) * xScale},${innerHeight}
-    Z`;
-  
-  // Generate x-axis ticks
-  $: xTicks = dates.map((date, i) => ({
-    x: i * xScale,
-    label: date
-  }));
-  
-  // Generate y-axis ticks (5 evenly spaced ticks)
-  $: yTicks = Array.from({ length: 6 }, (_, i) => {
-    const value = yMin + (yMax - yMin) * (i / 5);
-    return {
-      y: innerHeight - (value - yMin) * yScale,
-      label: `$${Math.round(value)}`
-    };
-  });
-  
-  // Update dimensions and render the chart
-  function updateDimensions() {
-    if (chartContainer) {
-      const rect = chartContainer.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
-      
-      // Force render after dimensions are set
-      isRendered = true;
+  // Watch for timeframe changes
+  $: {
+    if (timeframe && chart) {
+      const data = chartData[timeframe] || chartData['1 Month'];
+      chart.data.labels = data.labels;
+      chart.data.datasets[0].data = data.values;
+      chart.update();
     }
   }
   
   onMount(() => {
-    // Set dimensions and render the chart immediately
-    updateDimensions();
+    // Create chart on mount with a slight delay to ensure the DOM is ready
+    setTimeout(() => {
+      createChart();
+    }, 100);
     
-    // Also listen for resize events
-    window.addEventListener('resize', updateDimensions);
-    
-    return () => {
-      window.removeEventListener('resize', updateDimensions);
-    };
+    // Add window resize listener
+    window.addEventListener('resize', handleResize);
+  });
+  
+  onDestroy(() => {
+    // Clean up on unmount
+    if (chart) {
+      chart.destroy();
+    }
+    window.removeEventListener('resize', handleResize);
   });
 </script>
 
-<div bind:this={chartContainer} id={chartId} class="w-full h-full">
-  {#if width && height && isRendered}
-    <svg width={width} height={height}>
-      <!-- Background -->
-      <rect width={width} height={height} fill="rgba(10, 117, 87, 0.1)" />
-      
-      <!-- Chart area group -->
-      <g transform={`translate(${margin.left}, ${margin.top})`}>
-        <!-- Y-axis grid lines -->
-        {#each yTicks as tick}
-          <line 
-            x1="0" 
-            y1={tick.y} 
-            x2={innerWidth} 
-            y2={tick.y} 
-            stroke="rgba(255, 255, 255, 0.05)" 
-            stroke-width="1"
-          />
-        {/each}
-        
-        <!-- X-axis line -->
-        <line 
-          x1="0" 
-          y1={innerHeight} 
-          x2={innerWidth} 
-          y2={innerHeight} 
-          stroke="rgba(255, 255, 255, 0.1)" 
-          stroke-width="1"
-        />
-        
-        <!-- X-axis labels -->
-        {#each xTicks as tick, i}
-          {#if i % 2 === 0 || i === xTicks.length - 1}
-            <text 
-              x={tick.x} 
-              y={innerHeight + 20} 
-              font-size="12" 
-              text-anchor="middle" 
-              fill="rgba(230, 230, 230, 0.7)"
-            >
-              {tick.label}
-            </text>
-          {/if}
-        {/each}
-        
-        <!-- Y-axis labels -->
-        {#each yTicks as tick}
-          <text 
-            x="-10" 
-            y={tick.y} 
-            font-size="12" 
-            text-anchor="end" 
-            dominant-baseline="middle" 
-            fill="rgba(230, 230, 230, 0.7)"
-          >
-            {tick.label}
-          </text>
-        {/each}
-        
-        <!-- Area fill -->
-        <path 
-          d={fillPath} 
-          fill="rgba(18, 211, 157, 0.2)" 
-          stroke="none"
-        />
-        
-        <!-- Line -->
-        <polyline 
-          points={points} 
-          fill="none" 
-          stroke="rgba(18, 211, 157, 1)" 
-          stroke-width="2" 
-          stroke-linejoin="round" 
-          stroke-linecap="round"
-        />
-        
-        <!-- Data points -->
-        {#each values as value, i}
-          <circle 
-            cx={i * xScale} 
-            cy={innerHeight - (value - yMin) * yScale} 
-            r="4" 
-            fill="rgba(18, 211, 157, 1)" 
-            stroke="rgba(18, 211, 157, 1)" 
-            stroke-width="2"
-          />
-        {/each}
-      </g>
-    </svg>
-  {:else}
-    <!-- Loading indicator -->
-    <div class="w-full h-full flex items-center justify-center">
-      <div class="bg-[#0a7557]/50 p-2 rounded-full animate-pulse">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-[#12d39d]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10" stroke-opacity="0.25" />
-          <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round" />
-        </svg>
-      </div>
-    </div>
-  {/if}
+<div class="w-full h-full">
+  <canvas id={chartId} bind:this={canvas}></canvas>
 </div>
-
-<slot></slot>
