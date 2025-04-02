@@ -14,14 +14,7 @@ export default defineConfig({
 				drop_debugger: true
 			}
 		},
-		// Split chunks for better caching
-		rollupOptions: {
-			output: {
-				manualChunks: {
-					'chart': ['chart.js/auto']
-				}
-			}
-		},
+		// No need for manual chunks as we've removed chart.js
 		// Reduce chunk size warnings threshold
 		chunkSizeWarningLimit: 1000
 	},
