@@ -1,26 +1,27 @@
 // Import libraries
+
 import CanvasParticles from '../node_modules/canvasparticles-js/canvasParticles.mjs';
 import Chart from "../node_modules/chart.js/auto/auto.mjs";
 
-// Execute when DOM is loaded
+// Initialize charts as soon as DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
   // Initialize particles background
   initParticles();
   
-  // Initialize charts with a small delay to ensure canvas elements are ready
-  setTimeout(() => {
-    // Initialize all charts
-    const chartFunctions = [
-      updatePLDistributionChart,
-      updateDailyPLChart,
-      updateCoinPerformanceChart,
-      updateTradingActivityChart,
-      updatePositionAnalysisChart,
-      updateTimeFrameEfficiencyChart
-    ];
-    
+  // Initialize all charts immediately
+  const chartFunctions = [
+    updatePLDistributionChart,
+    updateDailyPLChart,
+    updateCoinPerformanceChart,
+    updateTradingActivityChart,
+    updatePositionAnalysisChart,
+    updateTimeFrameEfficiencyChart
+  ];
+  
+  // Run chart initializations asynchronously
+  requestAnimationFrame(() => {
     chartFunctions.forEach(fn => fn());
-  }, 500);
+  });
   
   // Set up UI interactions
   setupUIInteractions();
