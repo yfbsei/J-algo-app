@@ -27,8 +27,10 @@
       </div>
     {/if}
   </div>
-  <div class="p-4" style="height: {height}px;">
-    <canvas id={chartId} style="width: 100%; height: 100%;"></canvas>
+  
+  <!-- Important: The chart container div needs an explicit height -->
+  <div class="p-4" style="height: {height}px; position: relative;">
+    <slot></slot>
   </div>
   
   {#if $$slots.footer}
