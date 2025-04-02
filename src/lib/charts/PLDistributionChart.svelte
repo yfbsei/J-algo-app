@@ -1,3 +1,6 @@
+// src/lib/charts/PLDistributionChart.svelte
+// Simplified implementation that renders immediately
+
 <script>
   import { onMount } from 'svelte';
   
@@ -16,10 +19,6 @@
   
   // Refs
   let chartContainer;
-  
-  // Animation
-  let animationProgress = 0;
-  let animationFrame;
   
   // Helper functions for doughnut chart
   function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
@@ -66,10 +65,10 @@
     
     // Calculate start angle based on previous segments
     for (let j = 0; j < i; j++) {
-      startAngle += (data[j].value / total) * 360 * animationProgress;
+      startAngle += (data[j].value / total) * 360;
     }
     
-    const endAngle = startAngle + (percentage * 360 * animationProgress);
+    const endAngle = startAngle + (percentage * 360);
     
     return {
       ...item,
@@ -78,15 +77,6 @@
       path: createDonutPath(centerX, centerY, radius, innerRadius, startAngle, endAngle)
     };
   });
-  
-  // Animate the chart
-  function animateChart() {
-    if (animationProgress < 1) {
-      animationProgress += 0.04;
-      if (animationProgress > 1) animationProgress = 1;
-      animationFrame = requestAnimationFrame(animateChart);
-    }
-  }
   
   // Update dimensions on mount and when the window is resized
   function updateDimensions() {
@@ -101,12 +91,8 @@
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
     
-    // Start animation
-    animationFrame = requestAnimationFrame(animateChart);
-    
     return () => {
       window.removeEventListener('resize', updateDimensions);
-      if (animationFrame) cancelAnimationFrame(animationFrame);
     };
   });
 </script>
@@ -115,7 +101,7 @@
   {#if width && height}
     <svg width={width} height={height}>
       <!-- Background -->
-      <rect width={width} height={height} fill="transparent" />
+      <rect width={width} height={height} fill="rgba(10, 117, 87, 0.1)" />
       
       <!-- Doughnut segments -->
       {#each arcs as arc}
@@ -144,6 +130,16 @@
         98.2%
       </text>
     </svg>
+  {:else}
+    <!-- Loading indicator -->
+    <div class="w-full h-full flex items-center justify-center">
+      <div class="bg-[#0a7557]/50 p-2 rounded-full animate-pulse">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-[#12d39d]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" stroke-opacity="0.25" />
+          <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round" />
+        </svg>
+      </div>
+    </div>
   {/if}
 </div>
 

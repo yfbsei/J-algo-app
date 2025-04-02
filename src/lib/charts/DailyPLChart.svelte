@@ -1,3 +1,6 @@
+// src/lib/charts/DailyPLChart.svelte
+// Replace with this straightforward implementation that renders immediately
+
 <script>
   import { onMount } from 'svelte';
   
@@ -14,6 +17,7 @@
   
   // Refs
   let chartContainer;
+  let isRendered = false;
   
   // Derived values
   $: innerWidth = width - margin.left - margin.right;
@@ -58,17 +62,23 @@
     };
   });
   
-  // Update dimensions on mount and when the window is resized
+  // Update dimensions and render the chart
   function updateDimensions() {
     if (chartContainer) {
       const rect = chartContainer.getBoundingClientRect();
       width = rect.width;
       height = rect.height;
+      
+      // Force render after dimensions are set
+      isRendered = true;
     }
   }
   
   onMount(() => {
+    // Set dimensions and render the chart immediately
     updateDimensions();
+    
+    // Also listen for resize events
     window.addEventListener('resize', updateDimensions);
     
     return () => {
@@ -78,10 +88,10 @@
 </script>
 
 <div bind:this={chartContainer} id={chartId} class="w-full h-full">
-  {#if width && height}
+  {#if width && height && isRendered}
     <svg width={width} height={height}>
       <!-- Background -->
-      <rect width={width} height={height} fill="transparent" />
+      <rect width={width} height={height} fill="rgba(10, 117, 87, 0.1)" />
       
       <!-- Chart area group -->
       <g transform={`translate(${margin.left}, ${margin.top})`}>
@@ -166,6 +176,16 @@
         {/each}
       </g>
     </svg>
+  {:else}
+    <!-- Loading indicator -->
+    <div class="w-full h-full flex items-center justify-center">
+      <div class="bg-[#0a7557]/50 p-2 rounded-full animate-pulse">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-[#12d39d]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" stroke-opacity="0.25" />
+          <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round" />
+        </svg>
+      </div>
+    </div>
   {/if}
 </div>
 

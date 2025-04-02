@@ -6,33 +6,91 @@
   import AppDropdown from '$lib/components/AppDropdown.svelte';
   import ParticlesBackground from '$lib/components/ParticlesBackground.svelte';
   
-  // Import charts
-  import PLDistributionChart from '$lib/charts/PLDistributionChart.svelte';
-  import DailyPLChart from '$lib/charts/DailyPLChart.svelte';
-  import CoinPerformanceChart from '$lib/charts/CoinPerformanceChart.svelte';
-  import TradingActivityChart from '$lib/charts/TradingActivityChart.svelte';
-  import PositionAnalysisChart from '$lib/charts/PositionAnalysisChart.svelte';
-  import TimeFrameEfficiencyChart from '$lib/charts/TimeFrameEfficiencyChart.svelte';
+  // Lazy-loaded chart components
+  import { lazyLoad } from '$lib/utils/lazyLoader.js';
+  const PLDistributionChart = lazyLoad(() => import('$lib/charts/PLDistributionChart.svelte'));
+  const DailyPLChart = lazyLoad(() => import('$lib/charts/DailyPLChart.svelte'));
+  const CoinPerformanceChart = lazyLoad(() => import('$lib/charts/CoinPerformanceChart.svelte'));
+  const TradingActivityChart = lazyLoad(() => import('$lib/charts/TradingActivityChart.svelte'));
+  const PositionAnalysisChart = lazyLoad(() => import('$lib/charts/PositionAnalysisChart.svelte'));
+  const TimeFrameEfficiencyChart = lazyLoad(() => import('$lib/charts/TimeFrameEfficiencyChart.svelte'));
   
+  // App state
   let loading = true;
+  let activeTimeframe = '1 Month';
+  let selectedCoin = null;
+  let visibleCharts = {
+    daily: true,
+    pl: true,
+    coins: true,
+    trading: true,
+    analysis: true
+  };
+  
+  // Chart intersection observer
+  let observer;
+  let chartContainers = [];
+  
+  function setupIntersectionObserver() {
+    // Create observer to only render charts when they become visible
+    observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const id = entry.target.id;
+        if (entry.isIntersecting) {
+          visibleCharts[id] = true;
+        }
+      });
+    }, {
+      rootMargin: '100px', // Load charts slightly before they come into view
+      threshold: 0.1
+    });
+    
+    // Observe all chart containers
+    chartContainers.forEach(container => {
+      if (container) observer.observe(container);
+    });
+  }
+  
+  function handleTimeframeChange(timeframe) {
+    activeTimeframe = timeframe;
+    // Here you would update chart data based on selected timeframe
+  }
+  
+  function handleCoinSelect(event) {
+    selectedCoin = event.detail.coin;
+    // Here you could update other charts based on selected coin
+  }
   
   onMount(() => {
     // Simulate loading the dashboard data
     setTimeout(() => {
       loading = false;
+      
+      // Setup observers after a small delay to ensure DOM is ready
+      setTimeout(setupIntersectionObserver, 100);
     }, 800);
+    
+    return () => {
+      // Clean up observer
+      if (observer) {
+        observer.disconnect();
+      }
+    };
   });
 </script>
 
 <svelte:head>
   <title>J-algo Trading | Scientific Precision</title>
+  <meta name="description" content="J-algo Trading - Advanced algorithmic trading platform with scientific precision and market intelligence">
+  <!-- Preload critical assets -->
+  <link rel="preload" href="/images/jalgo-logo.png" as="image" fetchpriority="high">
 </svelte:head>
 
-<!-- Background -->
-<ParticlesBackground />
+<!-- Background - fullViewport ensures it covers entire page -->
+<ParticlesBackground fullViewport={true} particleOpacity={0.8} />
 
 <!-- Main app container -->
-<div class="flex flex-col min-h-screen relative overflow-hidden">
+<div class="flex flex-col min-h-screen relative overflow-x-hidden">
   <!-- Header -->
   <Header />
   
@@ -50,7 +108,7 @@
       </div>
     {:else}
       <!-- Dashboard content -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 animate-fade-in">
         <StatCard 
           title="Total Profit" 
           value="$31,842.56" 
@@ -82,15 +140,18 @@
       
       <!-- Charts section -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <div class="lg:col-span-2">
+        <div bind:this={chartContainers['daily']} id="daily" class="lg:col-span-2 transition-all duration-300">
           <ChartContainer 
             title="Daily P&L Performance" 
             chartId="dailyChart" 
             height="250"
             hasControls={true}
             controls={['2 Weeks', '1 Month', '3 Months', '1 Year']}
+            on:timeframeChange={handleTimeframeChange}
           >
-            <DailyPLChart />
+            {#if visibleCharts.daily}
+              <svelte:component this={DailyPLChart} timeframe={activeTimeframe} />
+            {/if}
             <div slot="footer" class="flex justify-between items-center mt-2 text-xs text-[#e6e6e6]/70">
               <span>Starting date: June 11, 2024</span>
               <span class="text-[#12d39d]">+$1,025 increase over period</span>
@@ -98,9 +159,11 @@
           </ChartContainer>
         </div>
         
-        <div>
+        <div bind:this={chartContainers['pl']} id="pl">
           <ChartContainer title="P&L Distribution" chartId="plChart" height="250">
-            <PLDistributionChart />
+            {#if visibleCharts.pl}
+              <svelte:component this={PLDistributionChart} />
+            {/if}
             <div slot="footer" class="grid grid-cols-2 gap-4 mt-2">
               <div class="text-xs">
                 <p class="text-[#e6e6e6]/70 mb-1">Profit</p>
@@ -117,63 +180,79 @@
       
       <!-- Second row of charts -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <ChartContainer title="Top Performing Coins" chartId="coinChart" height="300">
-          <CoinPerformanceChart />
-          <div slot="footer" class="text-xs text-[#e6e6e6]/70 mt-2">
-            Best performer: PEOPLE with $2,735 profit
-          </div>
-        </ChartContainer>
-        
-        <ChartContainer title="Trading Activity" chartId="tradesChart" height="300">
-          <TradingActivityChart />
-          <div slot="footer" class="flex justify-between items-center mt-2 text-xs text-[#e6e6e6]/70">
-            <span>Last 2 weeks</span>
-            <span>Total trades: 124</span>
-          </div>
-        </ChartContainer>
-        
-        <ChartContainer title="Analysis Metrics" chartId="analysisMetrics" height="300">
-          <div class="grid grid-cols-1 gap-4">
-            <div>
-              <p class="text-sm text-[#e6e6e6]/70 mb-2">Position Distribution</p>
-              <div class="h-32">
-                <PositionAnalysisChart chartId="positionChart" />
-              </div>
-              <div class="grid grid-cols-2 gap-2 mt-2">
-                <div class="text-xs">
-                  <p class="text-[#e6e6e6]/70">Long</p>
-                  <p class="text-sm text-[#12d39d]">38.4%</p>
-                </div>
-                <div class="text-xs">
-                  <p class="text-[#e6e6e6]/70">Short</p>
-                  <p class="text-sm text-[#e6e6e6]">61.6%</p>
-                </div>
-              </div>
+        <div bind:this={chartContainers['coins']} id="coins">
+          <ChartContainer title="Top Performing Coins" chartId="coinChart" height="300">
+            {#if visibleCharts.coins}
+              <svelte:component this={CoinPerformanceChart} on:coinselect={handleCoinSelect} />
+            {/if}
+            <div slot="footer" class="text-xs text-[#e6e6e6]/70 mt-2">
+              {#if selectedCoin}
+                Selected: {selectedCoin.name} with ${selectedCoin.value} profit
+              {:else}
+                Best performer: PEOPLE with $2,735 profit
+              {/if}
             </div>
-            
-            <div>
-              <p class="text-sm text-[#e6e6e6]/70 mb-2">Timeframe Efficiency</p>
-              <div class="h-32">
-                <TimeFrameEfficiencyChart chartId="timeframeChart" />
-              </div>
-              <div class="grid grid-cols-2 gap-2 mt-2">
-                <div class="text-xs">
-                  <p class="text-[#e6e6e6]/70">1min</p>
-                  <p class="text-sm text-[#e6e6e6]">8%</p>
-                </div>
-                <div class="text-xs">
-                  <p class="text-[#e6e6e6]/70">5min</p>
-                  <p class="text-sm text-[#12d39d]">92%</p>
-                </div>
-              </div>
+          </ChartContainer>
+        </div>
+        
+        <div bind:this={chartContainers['trading']} id="trading">
+          <ChartContainer title="Trading Activity" chartId="tradesChart" height="300">
+            {#if visibleCharts.trading}
+              <svelte:component this={TradingActivityChart} />
+            {/if}
+            <div slot="footer" class="flex justify-between items-center mt-2 text-xs text-[#e6e6e6]/70">
+              <span>Last 2 weeks</span>
+              <span>Total trades: 124</span>
             </div>
-          </div>
-        </ChartContainer>
+          </ChartContainer>
+        </div>
+        
+        <div bind:this={chartContainers['analysis']} id="analysis">
+          <ChartContainer title="Analysis Metrics" chartId="analysisMetrics" height="300">
+            {#if visibleCharts.analysis}
+              <div class="grid grid-cols-1 gap-4">
+                <div>
+                  <p class="text-sm text-[#e6e6e6]/70 mb-2">Position Distribution</p>
+                  <div class="h-32">
+                    <svelte:component this={PositionAnalysisChart} chartId="positionChart" />
+                  </div>
+                  <div class="grid grid-cols-2 gap-2 mt-2">
+                    <div class="text-xs">
+                      <p class="text-[#e6e6e6]/70">Long</p>
+                      <p class="text-sm text-[#12d39d]">38.4%</p>
+                    </div>
+                    <div class="text-xs">
+                      <p class="text-[#e6e6e6]/70">Short</p>
+                      <p class="text-sm text-[#e6e6e6]">61.6%</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <p class="text-sm text-[#e6e6e6]/70 mb-2">Timeframe Efficiency</p>
+                  <div class="h-32">
+                    <svelte:component this={TimeFrameEfficiencyChart} chartId="timeframeChart" />
+                  </div>
+                  <div class="grid grid-cols-2 gap-2 mt-2">
+                    <div class="text-xs">
+                      <p class="text-[#e6e6e6]/70">1min</p>
+                      <p class="text-sm text-[#e6e6e6]">8%</p>
+                    </div>
+                    <div class="text-xs">
+                      <p class="text-[#e6e6e6]/70">5min</p>
+                      <p class="text-sm text-[#12d39d]">92%</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {/if}
+          </ChartContainer>
+        </div>
       </div>
       
       <!-- Metrics section -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="bg-[#0a7557]/70 rounded-xl p-5 backdrop-blur-md shadow-md border border-[#12d39d]/10">
+        <div class="bg-[#0a7557]/70 rounded-xl p-5 backdrop-blur-md shadow-md border border-[#12d39d]/10 transition-all duration-300 hover:shadow-lg">
           <h2 class="text-base font-semibold text-[#12d39d] mb-4">Risk Management</h2>
           
           <div class="space-y-4">
@@ -182,8 +261,8 @@
                 <span class="text-xs text-[#e6e6e6]/70">Avg. Risk/Reward</span>
                 <span class="text-xs text-[#12d39d]">1:5.2</span>
               </div>
-              <div class="w-full bg-[#0a7557]/50 rounded-full h-1.5">
-                <div class="bg-[#12d39d] h-1.5 rounded-full" style="width: 84%"></div>
+              <div class="w-full bg-[#0a7557]/50 rounded-full h-1.5 overflow-hidden">
+                <div class="bg-[#12d39d] h-1.5 rounded-full transform-gpu transition-all duration-1000 ease-out" style="width: 84%; transform-origin: left center" />
               </div>
             </div>
             
@@ -192,8 +271,8 @@
                 <span class="text-xs text-[#e6e6e6]/70">Stop Loss Accuracy</span>
                 <span class="text-xs text-[#12d39d]">96.8%</span>
               </div>
-              <div class="w-full bg-[#0a7557]/50 rounded-full h-1.5">
-                <div class="bg-[#12d39d] h-1.5 rounded-full" style="width: 97%"></div>
+              <div class="w-full bg-[#0a7557]/50 rounded-full h-1.5 overflow-hidden">
+                <div class="bg-[#12d39d] h-1.5 rounded-full transform-gpu transition-all duration-1000 ease-out" style="width: 97%; transform-origin: left center" />
               </div>
             </div>
             
@@ -202,14 +281,14 @@
                 <span class="text-xs text-[#e6e6e6]/70">Account Risk per Trade</span>
                 <span class="text-xs text-[#12d39d]">1.2%</span>
               </div>
-              <div class="w-full bg-[#0a7557]/50 rounded-full h-1.5">
-                <div class="bg-[#12d39d] h-1.5 rounded-full" style="width: 30%"></div>
+              <div class="w-full bg-[#0a7557]/50 rounded-full h-1.5 overflow-hidden">
+                <div class="bg-[#12d39d] h-1.5 rounded-full transform-gpu transition-all duration-1000 ease-out" style="width: 30%; transform-origin: left center" />
               </div>
             </div>
           </div>
         </div>
         
-        <div class="bg-[#0a7557]/70 rounded-xl p-5 backdrop-blur-md shadow-md border border-[#12d39d]/10">
+        <div class="bg-[#0a7557]/70 rounded-xl p-5 backdrop-blur-md shadow-md border border-[#12d39d]/10 transition-all duration-300 hover:shadow-lg">
           <h2 class="text-base font-semibold text-[#12d39d] mb-4">Strategy Performance</h2>
           
           <div class="space-y-3">
@@ -235,21 +314,21 @@
           </div>
         </div>
         
-        <div class="bg-[#0a7557]/70 rounded-xl p-5 backdrop-blur-md shadow-md border border-[#12d39d]/10">
+        <div class="bg-[#0a7557]/70 rounded-xl p-5 backdrop-blur-md shadow-md border border-[#12d39d]/10 transition-all duration-300 hover:shadow-lg">
           <h2 class="text-base font-semibold text-[#12d39d] mb-4">Algorithm Updates</h2>
           
           <div class="space-y-3">
-            <div class="border-b border-[#12d39d]/10 pb-2">
+            <div class="border-b border-[#12d39d]/10 pb-2 cursor-pointer hover:bg-[#0a7557]/40 rounded px-2 py-1 transition-colors">
               <p class="text-sm text-[#e6e6e6] mb-1">v2.4.8 - Momentum Filter</p>
               <p class="text-xs text-[#e6e6e6]/70">Advanced filtering to reduce false signals in sideways markets</p>
             </div>
             
-            <div class="border-b border-[#12d39d]/10 pb-2">
+            <div class="border-b border-[#12d39d]/10 pb-2 cursor-pointer hover:bg-[#0a7557]/40 rounded px-2 py-1 transition-colors">
               <p class="text-sm text-[#e6e6e6] mb-1">v2.4.7 - Volatility Adjustment</p>
               <p class="text-xs text-[#e6e6e6]/70">Automatic position sizing based on real-time volatility</p>
             </div>
             
-            <div>
+            <div class="cursor-pointer hover:bg-[#0a7557]/40 rounded px-2 py-1 transition-colors">
               <p class="text-sm text-[#e6e6e6] mb-1">v2.4.6 - Pattern Recognition</p>
               <p class="text-xs text-[#e6e6e6]/70">ML-powered candlestick pattern detection with 97.8% accuracy</p>
             </div>
@@ -258,7 +337,7 @@
       </div>
       
       <!-- Bottom banner -->
-      <div class="bg-gradient-to-r from-[#0a7557]/80 to-[#111111]/70 rounded-xl p-5 backdrop-blur-md shadow-md border border-[#12d39d]/10">
+      <div class="bg-gradient-to-r from-[#0a7557]/80 to-[#111111]/70 rounded-xl p-5 backdrop-blur-md shadow-md border border-[#12d39d]/10 transform-gpu transition-all duration-300 hover:shadow-xl hover:scale-[1.01]">
         <div class="flex flex-col md:flex-row items-center justify-between">
           <div class="mb-4 md:mb-0">
             <h2 class="text-lg font-semibold text-[#12d39d] mb-2">Ready to unlock the full power of algorithmic trading?</h2>
@@ -269,7 +348,7 @@
             href="https://discord.gg/nyRUmCgwhC" 
             target="_blank" 
             rel="noopener noreferrer"
-            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#12d39d] text-[#111111] font-medium hover:bg-[#0ea47a] transition-colors shadow-lg shadow-[#0a7557]/30"
+            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#12d39d] text-[#111111] font-medium hover:bg-[#0ea47a] transition-all duration-300 shadow-lg shadow-[#0a7557]/30 hover:translate-y-[-2px] active:translate-y-[1px]"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M8 7v8a2 2 0 002 2h6M16 17l-2-2 2-2M8 7H6a2 2 0 00-2 2v9a2 2 0 002 2h9a2 2 0 002-2v-2" />
@@ -284,3 +363,26 @@
   <!-- App dropdown menu -->
   <AppDropdown />
 </div>
+
+<style>
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .animate-fade-in {
+    animation: fade-in 0.5s ease-out forwards;
+  }
+  
+  /* Ensure the page extends to fit the entire content */
+  :global(body) {
+    min-height: 100vh;
+    background: linear-gradient(to bottom, #111111, #0a7557);
+  }
+
+  /* Ensure consistent scrolling */
+  :global(html, body) {
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+  }
+</style>
