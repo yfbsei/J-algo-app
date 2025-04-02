@@ -40,9 +40,6 @@ export default defineConfig(({ mode }) => {
               'svelte/internal'
             ],
             'utils': [
-              './src/lib/utils/chartUtils.js',
-              './src/lib/utils/chartInteraction.js',
-              './src/lib/utils/chartHelpers.js'
             ]
           },
           // Reduce chunk size warnings threshold
@@ -82,9 +79,6 @@ export default defineConfig(({ mode }) => {
         strict: true
       }
     },
-    
-    // Specify the public path for different environments
-    base: isProduction ? './' : '/',
     
     // Performance optimizations
     esbuild: {

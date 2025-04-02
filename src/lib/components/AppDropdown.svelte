@@ -31,7 +31,7 @@
     // Hide prompt after a few seconds
     const hideTimer = setTimeout(() => {
       promptVisible = false;
-    }, 7000);
+    }, 10000);
     
     // Add global click handler
     document.addEventListener('click', closeDropdown);
